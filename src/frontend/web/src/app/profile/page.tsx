@@ -68,8 +68,8 @@ export default function ProfilePage() {
     return null
   }
 
-  const initials = user.name
-    ? user.name
+  const initials = user.username
+    ? user.username
         .split(" ")
         .map((n) => n[0])
         .join("")
@@ -88,7 +88,7 @@ export default function ProfilePage() {
               <AvatarFallback className="text-lg">{initials}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
-              <h1 className="text-xl font-semibold">{user.name}</h1>
+              <h1 className="text-xl font-semibold">{user.username}</h1>
               <p className="text-sm text-muted-foreground">{user.email}</p>
             </div>
           </div>
@@ -129,7 +129,7 @@ export default function ProfilePage() {
               <CardFooter>
                 <Button
                   type="submit"
-                  disabled={isSaving || name === user.name}
+                  disabled={isSaving || name === user.username}
                 >
                   {isSaving && <Loader2 className="animate-spin" />}
                   Save Changes
