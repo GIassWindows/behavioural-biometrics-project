@@ -168,6 +168,9 @@ export async function apiLogKeystrokes(keystrokes: {
   dwell_time: number
   flight_time: number
   backspace_rate: number
+  typing_speed: number
+  dwell_variance: number
+  digraph_time: number
 }[]): Promise<void> {
   await apiFetch("/keystrokes/log", {
     method: "POST",
@@ -179,6 +182,9 @@ export async function apiPredictKeystrokes(keystrokes: {
   dwell_time: number
   flight_time: number
   backspace_rate: number
+  typing_speed: number
+  dwell_variance: number
+  digraph_time: number
 }[]): Promise<{ status: string; anomaly_rate: number; message: string }> {
   return apiFetch("/ml/predict", {
     method: "POST",
@@ -192,4 +198,8 @@ export async function apiTrainModel(): Promise<{ message: string }> {
   return apiFetch("/ml/train", {
     method: "POST",
   })
+}
+
+export async function apiRetrainAdaptive(): Promise<void> {
+  await apiFetch("/ml/retrain", { method: "POST" })
 }

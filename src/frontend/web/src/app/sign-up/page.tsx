@@ -20,28 +20,42 @@ import { toast } from "sonner"
 import { Loader2 } from "lucide-react"
 import { apiLogKeystrokes, apiTrainModel } from "@/lib/api"
 
-const ENROLLMENT_PARAGRAPH = "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs. How vaguely quixotic the jazz musician performs. Bright vixens jump dozing fowl quack."
-
 export default function SignUpPage() {
   const { signUp } = useAuth()
   const router = useRouter()
-
 
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [keystrokeCount, setKeystrokeCount] = useState(0)
 
   const [step, setStep] = useState<1 | 2>(1)
   const [typedText, setTypedText] = useState("")
   const [isEnrolling, setIsEnrolling] = useState(false)
 
+  // Keystroke tracking refs
   const keyDownTimes = useRef<Record<string, number>>({})
   const lastKeyUpTime = useRef<number | null>(null)
-  const keystrokeBuffer = useRef<{ dwell_time: number; flight_time: number }[]>([])
+  const keystrokeBuffer = useRef<{
+    dwell_time: number
+    flight_time: number
+    backspace_rate: number
+    typing_speed: number
+    dwell_variance: number
+    digraph_time: number
+  }[]>([])
+  const totalKeys = useRef<number>(0)
+  const backspaceCount = useRef<number>(0)
+  const dwellTimes = useRef<number[]>([])
+  const digraphTimes = useRef<number[]>([])
+  const batchStartTime = useRef<number | null>(null)
 
   function handleKeyDown(e: React.KeyboardEvent) {
     keyDownTimes.current[e.key] = performance.now()
+    if (batchStartTime.current === null) {
+      batchStartTime.current = performance.now()
+    }
   }
 
   function handleKeyUp(e: React.KeyboardEvent) {
@@ -51,8 +65,42 @@ export default function SignUpPage() {
     if (keyDownTime !== undefined) {
       const dwell_time = now - keyDownTime
       const flight_time = lastKeyUpTime.current !== null ? now - lastKeyUpTime.current : 0
+
       lastKeyUpTime.current = now
-      keystrokeBuffer.current.push({ dwell_time, flight_time })
+      totalKeys.current += 1
+
+      if (e.key === "Backspace") {
+        backspaceCount.current += 1
+      }
+
+      dwellTimes.current.push(dwell_time)
+      if (flight_time > 0) {
+        digraphTimes.current.push(flight_time)
+      }
+
+      const backspace_rate = backspaceCount.current / totalKeys.current
+      const batchDuration = batchStartTime.current !== null
+        ? (now - batchStartTime.current) / 1000
+        : 1
+      const typing_speed = totalKeys.current / batchDuration
+      const mean_dwell = dwellTimes.current.reduce((a, b) => a + b, 0) / dwellTimes.current.length
+      const dwell_variance = dwellTimes.current.length > 1
+        ? Math.sqrt(dwellTimes.current.reduce((a, b) => a + Math.pow(b - mean_dwell, 2), 0) / dwellTimes.current.length)
+        : 0
+      const digraph_time = digraphTimes.current.length > 0
+        ? digraphTimes.current.reduce((a, b) => a + b, 0) / digraphTimes.current.length
+        : 0
+
+      keystrokeBuffer.current.push({
+        dwell_time,
+        flight_time,
+        backspace_rate,
+        typing_speed,
+        dwell_variance,
+        digraph_time
+      })
+
+      setKeystrokeCount(keystrokeBuffer.current.length)
       delete keyDownTimes.current[e.key]
     }
   }
@@ -72,8 +120,8 @@ export default function SignUpPage() {
   }
 
   async function handleEnrollment() {
-    if (keystrokeBuffer.current.length < 50) {
-      toast.error("Please type more of the paragraph before continuing")
+    if (keystrokeBuffer.current.length < 200) {
+      toast.error(`Please type more: ${keystrokeBuffer.current.length}/200 keystrokes captured`)
       return
     }
     setIsEnrolling(true)
@@ -96,29 +144,26 @@ export default function SignUpPage() {
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Set up your typing profile</CardTitle>
             <CardDescription>
-              Type the paragraph below so we can learn your typing style.
-              This helps us keep your account secure.
+              Type freely in the box below, write anything you like. This could be about your day, your thoughts, or anything else.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <div className="rounded-md bg-muted p-4 text-sm text-muted-foreground leading-relaxed">
-              {ENROLLMENT_PARAGRAPH}
-            </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="enrollment">Your typing</Label>
+              <Label htmlFor="enrollment">Start typing...</Label>
               <Textarea
                 id="enrollment"
-                placeholder="Start typing the paragraph above..."
+                placeholder="Write anything you like here..."
                 value={typedText}
                 onChange={(e) => setTypedText(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onKeyUp={handleKeyUp}
-                rows={5}
+                rows={8}
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              {keystrokeBuffer.current.length} keystrokes captured
-              {keystrokeBuffer.current.length < 50 && " (need at least 50)"}
+              {keystrokeCount} / 200 keystrokes captured
+              {keystrokeCount < 200 && ". Keep typing!"}
+              {keystrokeCount >= 200 && ". Ready to complete!"}
             </p>
           </CardContent>
           <CardFooter>

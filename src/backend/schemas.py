@@ -30,6 +30,9 @@ class KeystrokeCreate(BaseModel):
     dwell_time: float
     flight_time: float
     backspace_rate: float = 0.0
+    typing_speed: float = 0.0
+    dwell_variance: float = 0.0
+    digraph_time: float = 0.0
 
 class KeystrokeResponse(BaseModel):
     id: int

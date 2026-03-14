@@ -21,12 +21,22 @@ export function NoteEditor({ note, onSave, onDelete }: NoteEditorProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [authStatus, setAuthStatus] = useState<"normal" | "suspicious" | "anomaly" | null>(null)
 
+  const batchStartTime = useRef<number | null>(null)
+  const digraphTimes = useRef<number[]>([])
+  const dwellTimes = useRef<number[]>([])
   const suspiciousCount = useRef<number>(0)
   const totalKeys = useRef<number>(0)
   const backspaceCount = useRef<number>(0)
   const keyDownTimes = useRef<Record<string, number>>({})
   const lastKeyUpTime = useRef<number | null>(null)
-  const keystrokeBuffer = useRef<{ dwell_time: number; flight_time: number }[]>([])
+  const keystrokeBuffer = useRef<{
+    dwell_time: number
+    flight_time: number
+    backspace_rate: number
+    typing_speed: number
+    dwell_variance: number
+    digraph_time: number
+  }[]>([])
   const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const isDirty = title !== note.title || content !== note.content
@@ -64,14 +74,42 @@ export function NoteEditor({ note, onSave, onDelete }: NoteEditorProps) {
   async function flushKeystrokes() {
     if (keystrokeBuffer.current.length === 0) return
     const batch = [...keystrokeBuffer.current]
+    const batchDwellTimes = [...dwellTimes.current]
+    const batchDigraphTimes = [...digraphTimes.current]
+    const batchDuration = batchStartTime.current !== null
+      ? (performance.now() - batchStartTime.current) / 1000
+      : 1
+
+    const typing_speed = batch.length / batchDuration
+    const mean_dwell = batchDwellTimes.reduce((a, b) => a + b, 0) / batchDwellTimes.length
+    const dwell_variance = batchDwellTimes.length > 1
+      ? Math.sqrt(batchDwellTimes.reduce((a, b) => a + Math.pow(b - mean_dwell, 2), 0) / batchDwellTimes.length)
+      : 0
+    const digraph_time = batchDigraphTimes.length > 0
+      ? batchDigraphTimes.reduce((a, b) => a + b, 0) / batchDigraphTimes.length
+      : 0
+
+    const enrichedBatch = batch.map(k => ({
+      ...k,
+      typing_speed,
+      dwell_variance,
+      digraph_time
+    }))
+
     keystrokeBuffer.current = []
+    dwellTimes.current = []
+    digraphTimes.current = []
+    batchStartTime.current = null
+
     try {
-      await apiLogKeystrokes(batch)
-      const result = await apiPredictKeystrokes(batch)
+      await apiLogKeystrokes(enrichedBatch)
+      const result = await apiPredictKeystrokes(enrichedBatch)
 
       if (result.status === "normal") {
-        suspiciousCount.current = 0
-        setAuthStatus("normal")
+        suspiciousCount.current = Math.max(0, suspiciousCount.current - 1)
+        if (suspiciousCount.current === 0) {
+          setAuthStatus("normal")
+        }
       } else if (result.status === "suspicious") {
         suspiciousCount.current += 1
         if (suspiciousCount.current >= 2) {
@@ -79,17 +117,20 @@ export function NoteEditor({ note, onSave, onDelete }: NoteEditorProps) {
         }
       } else if (result.status === "anomaly") {
         suspiciousCount.current += 1
-        if (suspiciousCount.current >= 3) {
+        if (suspiciousCount.current >= 2) {
           setAuthStatus("anomaly")
         }
       }
     } catch {
-      // Silently fail
+      console.log("something is wrong")
     }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
     keyDownTimes.current[e.key] = performance.now()
+    if (batchStartTime.current === null) {
+      batchStartTime.current = performance.now()
+    }
   }
 
   function handleKeyUp(e: React.KeyboardEvent) {
@@ -107,9 +148,22 @@ export function NoteEditor({ note, onSave, onDelete }: NoteEditorProps) {
         backspaceCount.current += 1
       }
 
+      dwellTimes.current.push(dwell_time)
+      if (flight_time > 0) {
+        digraphTimes.current.push(flight_time)
+      }
+
       const backspace_rate = backspaceCount.current / totalKeys.current
 
-      keystrokeBuffer.current.push({ dwell_time, flight_time, backspace_rate })
+      keystrokeBuffer.current.push({
+        dwell_time,
+        flight_time,
+        backspace_rate,
+        typing_speed: 0,
+        dwell_variance: 0,
+        digraph_time: 0
+      })
+
       delete keyDownTimes.current[e.key]
 
       if (keystrokeBuffer.current.length >= 10) {

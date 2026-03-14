@@ -3,11 +3,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from database import engine, get_db, Base
-from models import User, KeystrokeLog, Note
+from models import User, KeystrokeLog, Note, UserModel
 from schemas import UserCreate, UserResponse, Token, KeystrokeBatch, NoteCreate, NoteUpdate, NoteResponse
 from auth import hash_password, authenticate_user, create_access_token, get_current_user
 from fastapi.security import OAuth2PasswordRequestForm
-from ml import train_model, predict
+from ml import train_model, predict, retrain_adaptive, should_retrain
 import os
 from dotenv import load_dotenv
 
@@ -18,7 +18,7 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
-# CORS - allows your NextJS frontend to talk to this backend
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -27,12 +27,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Health check
 @app.get("/")
 def root():
     return {"message": "Backend is running"}
 
-# Register
+# Register account
 @app.post("/auth/register", response_model=UserResponse)
 def register(user: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(
@@ -53,7 +52,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
-# Login
+# Log into account
 @app.post("/auth/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = authenticate_user(db, form_data.username, form_data.password)
@@ -86,12 +85,29 @@ def log_keystrokes(
             user_id=current_user.id,
             dwell_time=k.dwell_time,
             flight_time=k.flight_time,
-            backspace_rate=k.backspace_rate
+            backspace_rate=k.backspace_rate,
+            typing_speed=k.typing_speed,
+            dwell_variance=k.dwell_variance,
+            digraph_time=k.digraph_time
         )
         for k in batch.keystrokes
     ]
     db.add_all(logs)
     db.commit()
+
+    record = db.query(UserModel).filter(UserModel.user_id == current_user.id).first()
+    if record and should_retrain(record):
+        all_logs = db.query(KeystrokeLog).filter(KeystrokeLog.user_id == current_user.id).all()
+        keystrokes = [{
+            "dwell_time": l.dwell_time,
+            "flight_time": l.flight_time,
+            "backspace_rate": l.backspace_rate,
+            "typing_speed": l.typing_speed,
+            "dwell_variance": l.dwell_variance,
+            "digraph_time": l.digraph_time
+        } for l in all_logs]
+        retrain_adaptive(current_user.id, keystrokes, db)
+
     return {"saved": len(logs)}
 
 # Get all notes
@@ -136,12 +152,25 @@ def delete_note(note_id: int, current_user: User = Depends(get_current_user), db
     db.commit()
     return {"success": True}
 
-# Train model for current user
+# ML section
+
+# Train model for current user, always done in enrollment phase
 @app.post("/ml/train")
 def train(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     logs = db.query(KeystrokeLog).filter(KeystrokeLog.user_id == current_user.id).all()
-    keystrokes = [{"dwell_time": l.dwell_time, "flight_time": l.flight_time, "backspace_rate": l.backspace_rate} for l in logs]
-    success, message = train_model(current_user.id, keystrokes)
+
+    # features
+    keystrokes = [{
+        "dwell_time": l.dwell_time,
+        "flight_time": l.flight_time,
+        "backspace_rate": l.backspace_rate,
+        "typing_speed": l.typing_speed,
+        "dwell_variance": l.dwell_variance,
+        "digraph_time": l.digraph_time
+    } for l in logs]
+
+    success, message = train_model(current_user.id, keystrokes, db)
+
     if not success:
         raise HTTPException(status_code=400, detail=message)
     return {"message": message}
@@ -153,6 +182,30 @@ def predict_keystrokes(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    keystrokes = [{"dwell_time": k.dwell_time, "flight_time": k.flight_time, "backspace_rate": k.backspace_rate} for k in batch.keystrokes]
-    result = predict(current_user.id, keystrokes)
+    # features
+    keystrokes = [{
+        "dwell_time": l.dwell_time,
+        "flight_time": l.flight_time,
+        "backspace_rate": l.backspace_rate,
+        "typing_speed": l.typing_speed,
+        "dwell_variance": l.dwell_variance,
+        "digraph_time": l.digraph_time
+    } for l in batch.keystrokes]
+
+    result = predict(current_user.id, keystrokes, db)
+
     return result
+
+@app.post("/ml/retrain")
+def retrain(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    logs = db.query(KeystrokeLog).filter(KeystrokeLog.user_id == current_user.id).all()
+    keystrokes = [{
+        "dwell_time": l.dwell_time,
+        "flight_time": l.flight_time,
+        "backspace_rate": l.backspace_rate,
+        "typing_speed": l.typing_speed,
+        "dwell_variance": l.dwell_variance,
+        "digraph_time": l.digraph_time
+    } for l in logs]
+    retrain_adaptive(current_user.id, keystrokes, db)
+    return {"message": "Adaptive model retrained"}

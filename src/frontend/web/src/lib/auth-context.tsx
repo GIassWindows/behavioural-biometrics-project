@@ -17,6 +17,7 @@ import {
   getToken,
   setToken,
   clearToken,
+  apiRetrainAdaptive
 } from "@/lib/api"
 
 interface AuthContextType {
@@ -64,7 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     []
   )
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    try {
+      await apiRetrainAdaptive()
+    } catch {
+      console.log("something is wrong")
+    }
     clearToken()
     setUser(null)
   }, [])

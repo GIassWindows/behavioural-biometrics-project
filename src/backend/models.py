@@ -11,8 +11,20 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
+# Retrain model
+
+class UserModel(Base):
+    __tablename__ = "user_models"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, unique=True, nullable=False)
+    enrollment_model = Column(String, nullable=False)
+    adaptive_model = Column(String, nullable=True)
+    last_retrained = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
 # Keystroke logging for data training
-# Logs dwell and flight time, and the rate of typos identified by backspace
 
 class KeystrokeLog(Base):
     __tablename__ = "keystroke_logs"
@@ -22,6 +34,9 @@ class KeystrokeLog(Base):
     dwell_time = Column(Float, nullable=False)
     flight_time = Column(Float, nullable=False)
     backspace_rate = Column(Float, nullable=False, default=0.0)
+    typing_speed = Column(Float, nullable=False, default=0.0)
+    dwell_variance = Column(Float, nullable=False, default=0.0)
+    digraph_time = Column(Float, nullable=False, default=0.0)
     timestamp = Column(DateTime(timezone=True), server_default=func.now())
 
 class Note(Base):
