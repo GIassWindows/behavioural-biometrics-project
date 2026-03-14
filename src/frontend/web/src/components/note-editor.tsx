@@ -105,12 +105,7 @@ export function NoteEditor({ note, onSave, onDelete }: NoteEditorProps) {
       await apiLogKeystrokes(enrichedBatch)
       const result = await apiPredictKeystrokes(enrichedBatch)
 
-      if (result.status === "normal") {
-        suspiciousCount.current = Math.max(0, suspiciousCount.current - 1)
-        if (suspiciousCount.current === 0) {
-          setAuthStatus("normal")
-        }
-      } else if (result.status === "suspicious") {
+      if (result.status === "suspicious") {
         suspiciousCount.current += 1
         if (suspiciousCount.current >= 2) {
           setAuthStatus("suspicious")
@@ -214,7 +209,7 @@ export function NoteEditor({ note, onSave, onDelete }: NoteEditorProps) {
         {authStatus === "suspicious" && (
           <div className="flex items-center justify-between bg-yellow-100 border-b border-yellow-300 px-6 py-2 text-sm text-yellow-800">
             <span>Unusual typing pattern detected. Please verify your identity.</span>
-            <button onClick={() => setAuthStatus("normal")} className="text-yellow-800 underline ml-4">
+            <button onClick={() => { setAuthStatus("normal"); suspiciousCount.current = 0 }} className="text-yellow-800 underline ml-4">
               Dismiss
             </button>
           </div>
@@ -222,7 +217,7 @@ export function NoteEditor({ note, onSave, onDelete }: NoteEditorProps) {
         {authStatus === "anomaly" && (
           <div className="flex items-center justify-between bg-red-100 border-b border-red-300 px-6 py-2 text-sm text-red-800">
             <span>Typing behaviour does not match the registered user.</span>
-            <button onClick={() => setAuthStatus("normal")} className="text-red-800 underline ml-4">
+            <button onClick={() => { setAuthStatus("normal"); suspiciousCount.current = 0 }} className="text-red-800 underline ml-4">
               Dismiss
             </button>
           </div>

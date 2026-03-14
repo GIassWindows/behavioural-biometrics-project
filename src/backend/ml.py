@@ -15,7 +15,7 @@ def string_to_model(model_str: str) -> dict:
 def build_model(X_scaled):
     model = IsolationForest(
         n_estimators=100,
-        contamination=0.01, # very sensitive model, default: 0.05
+        contamination=0.05, # very sensitive model, default: 0.05
         random_state=42
     )
     model.fit(X_scaled)
@@ -146,9 +146,9 @@ def predict(user_id: int, keystrokes: list[dict], db: Session) -> dict:
 
     anomaly_rate = (combined_scores < 0).mean()
 
-    if anomaly_rate > 0.3:
+    if anomaly_rate > 0.2:
         status = "anomaly"
-    elif anomaly_rate > 0.15:
+    elif anomaly_rate > 0.1:
         status = "suspicious"
     else:
         status = "normal"
