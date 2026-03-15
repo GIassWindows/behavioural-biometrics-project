@@ -92,10 +92,7 @@ def log_keystrokes(
             user_id=current_user.id,
             dwell_time=k.dwell_time,
             flight_time=k.flight_time,
-            backspace_rate=k.backspace_rate,
-            typing_speed=k.typing_speed,
-            dwell_variance=k.dwell_variance,
-            digraph_time=k.digraph_time
+            backspace_rate=k.backspace_rate
         )
         for k in batch.keystrokes
     ]
@@ -108,10 +105,7 @@ def log_keystrokes(
         keystrokes = [{
             "dwell_time": l.dwell_time,
             "flight_time": l.flight_time,
-            "backspace_rate": l.backspace_rate,
-            "typing_speed": l.typing_speed,
-            "dwell_variance": l.dwell_variance,
-            "digraph_time": l.digraph_time
+            "backspace_rate": l.backspace_rate
         } for l in all_logs]
         retrain_adaptive(current_user.id, keystrokes, db)
 
@@ -170,10 +164,7 @@ def train(current_user: User = Depends(get_current_user), db: Session = Depends(
     keystrokes = [{
         "dwell_time": l.dwell_time,
         "flight_time": l.flight_time,
-        "backspace_rate": l.backspace_rate,
-        "typing_speed": l.typing_speed,
-        "dwell_variance": l.dwell_variance,
-        "digraph_time": l.digraph_time
+        "backspace_rate": l.backspace_rate
     } for l in logs]
 
     success, message = train_model(current_user.id, keystrokes, db)
@@ -193,10 +184,7 @@ def predict_keystrokes(
     keystrokes = [{
         "dwell_time": l.dwell_time,
         "flight_time": l.flight_time,
-        "backspace_rate": l.backspace_rate,
-        "typing_speed": l.typing_speed,
-        "dwell_variance": l.dwell_variance,
-        "digraph_time": l.digraph_time
+        "backspace_rate": l.backspace_rate
     } for l in batch.keystrokes]
 
     result = predict(current_user.id, keystrokes, db)

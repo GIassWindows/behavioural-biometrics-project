@@ -30,10 +30,7 @@ def train_model(user_id: int, keystrokes: list[dict], db: Session):
     X = np.array([[
         k["dwell_time"],
         k["flight_time"],
-        k["backspace_rate"],
-        k["typing_speed"],
-        k["dwell_variance"],
-        k["digraph_time"]
+        k["backspace_rate"]
     ] for k in keystrokes])
 
     scaler = StandardScaler()
@@ -76,10 +73,7 @@ def retrain_adaptive(user_id: int, keystrokes: list[dict], db: Session):
     X = np.array([[
         k["dwell_time"],
         k["flight_time"],
-        k["backspace_rate"],
-        k["typing_speed"],
-        k["dwell_variance"],
-        k["digraph_time"]
+        k["backspace_rate"]
     ] for k in keystrokes])
 
     X_scaled = scaler.transform(X)
@@ -123,10 +117,7 @@ def predict(user_id: int, keystrokes: list[dict], db: Session) -> dict:
     X = np.array([[
         k["dwell_time"],
         k["flight_time"],
-        k["backspace_rate"],
-        k["typing_speed"],
-        k["dwell_variance"],
-        k["digraph_time"]
+        k["backspace_rate"]
     ] for k in keystrokes])
 
     X_scaled = scaler.transform(X)

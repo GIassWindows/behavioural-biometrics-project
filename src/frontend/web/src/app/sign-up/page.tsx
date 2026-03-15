@@ -41,9 +41,6 @@ export default function SignUpPage() {
     dwell_time: number
     flight_time: number
     backspace_rate: number
-    typing_speed: number
-    dwell_variance: number
-    digraph_time: number
   }[]>([])
   const totalKeys = useRef<number>(0)
   const backspaceCount = useRef<number>(0)
