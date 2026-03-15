@@ -15,7 +15,7 @@ def string_to_model(model_str: str) -> dict:
 def build_model(X_scaled):
     model = IsolationForest(
         n_estimators=100,
-        contamination=0.1, # very sensitive model, default: 0.05
+        contamination=0.025, # very sensitive model, default: 0.05
         random_state=42
     )
     model.fit(X_scaled)
@@ -138,7 +138,7 @@ def predict(user_id: int, keystrokes: list[dict], db: Session) -> dict:
         adaptive_data = string_to_model(record.adaptive_model)
         adaptive_model = adaptive_data["model"]
         adaptive_scores = adaptive_model.decision_function(X_scaled)
-        combined_scores = (enrollment_scores * 0.5) + (adaptive_scores * 0.5)
+        combined_scores = (enrollment_scores * 0.7) + (adaptive_scores * 0.3)
     else:
         combined_scores = enrollment_scores
 
@@ -146,9 +146,9 @@ def predict(user_id: int, keystrokes: list[dict], db: Session) -> dict:
 
     anomaly_rate = (combined_scores < 0).mean()
 
-    if anomaly_rate > 0.5:
+    if anomaly_rate > 0.3:
         status = "anomaly"
-    elif anomaly_rate > 0.3:
+    elif anomaly_rate > 0.15:
         status = "suspicious"
     else:
         status = "normal"
